@@ -6,23 +6,49 @@ class Job:
         self.__btime = time         # burst time of the job 
         self.__size = size          # size of the job
 
+        self.__assignable = True    # bool whether the job is assignable
         self.__status = "waiting"   # job status - can be "waiting", "allocated", or "done"
         self.__wtime = time         # waiting time of job. shall be decremented
+
+    # get index of this job
+    def get_index(self) -> int:
+        return self.__index
+
+    # get burst time of this job
+    def get_btime(self) -> int:
+        return self.__btime
+
+    # get burst time of this job
+    def get_size(self) -> int:
+        return self.__size
 
     # get status of this job
     def get_status(self) -> str:
         return self.__status
 
+    # get status of this job
+    def get_assignable(self) -> bool:
+        return self.__assignable
+
     # get waiting time of this job
     def get_wtime(self) -> int:
         return self.__wtime
 
-    # increment waiting time by 1
+    # set status of this job
+    def set_status(self, status:str) -> None:
+        self.__status = status
+
+    # set assignable of this job
+    def set_assignable(self, is_assignable:bool) -> None:
+        self.__assignable = is_assignable
+
+    # decrement waiting time by 1
     def elapse(self) -> None:
         self.__wtime -= 1
 
+    # for debugging
     def __repr__(self) -> str:
-        return f'Job{str(self.__index).zfill(2)}: <{self.__btime},{self.__size}>'
+        return f'Job{self.__index}: <{self.__wtime}, {self.__status}, {self.__btime}, {self.__size}>'
 
 #* Memory Block Class
 class MemBlock:
@@ -32,27 +58,38 @@ class MemBlock:
 
         self.__status = "free"      # block status - can be "free" or "occupied"
         self.__allocjob = None      # holds the job currently allocated to the block
-    
-    # gets size of a block
+
+    # get index of a block
+    def get_index(self) -> int:
+        return self.__index
+
+    # get size of a block
     def get_size(self) -> int:
         return self.__size
 
-    # gets current status of a block
+    # get current status of a block
     def get_status(self) -> str:
         return self.__status
 
+    # get current status of a block
+    def get_allocjob(self) -> Job:
+        return self.__allocjob
+
     # allocate a job in this block
-    def allocate(self, job) -> None:
+    def allocate(self, job:Job) -> None:
         self.__allocjob = job
+        self.__allocjob.set_status('allocated')
         self.__status = "occupied"
 
     # deallocate the job contained in this block
     def deallocate(self) -> None:
+        self.__allocjob.set_status('done')
         self.__allocjob = None
         self.__status = "free"
 
+    # for debugging
     def __repr__(self) -> str:
-        return f'Memory{str(self.__index).zfill(2)}: <{self.__size}>'
+        return f'Memory{self.__index}: <{self.__allocjob}, {self.__status}, {self.__size}>\n'
 
 #* Job List
 class JobList:
@@ -60,13 +97,30 @@ class JobList:
         self.__rawlist:list[Job] = []
 
     # appends jobs to job list
-    def add(self, job) -> None:
+    def add(self, job:Job) -> None:
         self.__rawlist.append(job)
 
-    # allows the object to be indexed by []
-    def __getitem__(self, key) -> Job:
+    # prepare job list for any stuff in jobs
+    def prep(self, max_block:int) -> None:
+        # checks whether a job has size bigger than the max block
+        for job in self.__rawlist:
+            if job.get_size() > max_block:
+                job.set_assignable(False)
+
+    # check if all jobs are finished
+    def are_finished(self) -> bool:
+        for job in self.__rawlist:
+            if not job.get_assignable():
+                continue
+            if job.get_status() != 'done':
+                return False
+        return True
+
+    # allows the object to be indexed
+    def __getitem__(self, key:str) -> Job:
         return self.__rawlist[key]
 
+    # for debugging
     def __repr__(self) -> str:
         return repr(self.__rawlist)
 
@@ -76,20 +130,61 @@ class MemList:
         self.__rawlist:list[MemBlock] = []
 
     # appends blocks to memory list
-    def add(self, block) -> None:
+    def add(self, block:MemBlock) -> None:
         self.__rawlist.append(block)
 
-    # sorts memory list depending on chosen algo
-    def sort(self, algo) -> None:
+    # prepare memory list for algo (e.g. sorting, etc.)
+    def prep(self, algo:str) -> None:
+        # sorts the memlist depending on algo chosen
         if algo == '1':
             self.__rawlist.sort(key = lambda blk: blk.get_size(), reverse=True)
         elif algo == '2':
             self.__rawlist.sort(key = lambda blk: blk.get_size())
 
-    # allows the object to be indexed by []
-    def __getitem__(self, key) -> MemBlock:
+    # assign jobs to blocks
+    def assign(self, joblist:JobList) -> None:
+        for job in joblist:
+            # check if job is assigable
+            if (not job.get_assignable()):
+                continue
+            # check if job is waiting
+            if (job.get_status() == 'allocated') or (job.get_status() == 'done'):
+                continue
+            # find a block that can accomodate
+            for block in self.__rawlist:
+                # check if block is not occupied
+                if block.get_status() == 'occupied':
+                    continue
+                # check if block can accomodate the job
+                if job.get_size() <= block.get_size():
+                    block.allocate(job)
+                    break
+
+    # execute all jobs allocated in the blocks
+    def execute(self) -> None:
+        for block in self.__rawlist:
+            if block.get_status() != 'occupied':
+                continue
+
+            block.get_allocjob().elapse()
+
+            if block.get_allocjob().get_wtime() <= 0:
+                block.deallocate()
+
+    # print the jobs and time from the memory
+    def display_memlist(self) -> None:
+        for block in self.__rawlist:
+            if block.get_status() == 'occupied':
+                x = str(block.get_allocjob().get_index()).zfill(2)
+                y = str(block.get_index()).zfill(2)
+                z = str(block.get_allocjob().get_wtime()).zfill(2)
+                print(f'Job {x} has been allocated in memory block {y} and will reside for {z} ms')
+
+    # allows the object to be indexed
+    def __getitem__(self, key:int) -> MemBlock:
         return self.__rawlist[key]
 
+    # for debugging
     def __repr__(self) -> str:
         return str(self.__rawlist)
 
@@ -98,6 +193,7 @@ def main():
 
     jobList = JobList()
     memoryList = MemList()
+    max_block = 0
 
     # ! get all jobs
     with open('./data/joblist.txt') as f:
@@ -116,7 +212,9 @@ def main():
         for line in f.readlines():
             m = line.split()
             memoryList.add(MemBlock(int(m[0]), int(m[1])))
-    
+            if int(m[1]) > max_block:
+                max_block = int(m[1])
+
     # ! ask user with chosen algo w/ validation
     print('Choose Algorithm: [1] Worst-Fit [2] Best Fit [3] First-Fit')
     chosenAlgo = input()
@@ -124,11 +222,26 @@ def main():
         print('Invalid choice of allocation algorithm. Try again.')
         chosenAlgo = input()
 
-    # ! prepare job/memory list based on chosen algo
-    memoryList.sort(chosenAlgo)
+    # ! prepare job list and memory list before the allocation process
+    memoryList.prep(chosenAlgo)
+    jobList.prep(max_block)     
 
-    # ! main program loop
-    for memblock in memoryList:
-        print(memblock)
+    # ! main allocation loop
+    time = 1
+    while not jobList.are_finished():
+        # allocate jobs
+        memoryList.assign(jobList)
+        # print the current memory list
+        print('-'*27 + f' AT TIME t = {str(time).zfill(2)} ' + '-'*27)
+        memoryList.display_memlist()
+        # execute the jobs inside memory list
+        memoryList.execute()
+
+        time += 1
+        print()
+
+    # ! evaluation
+    str_algo = ['WORST-FIT', 'BEST-FIT', 'FIRST-FIT']
+    print('='*30 + f' {str_algo[int(chosenAlgo)-1]} ' + '='*30)
 
 main()
