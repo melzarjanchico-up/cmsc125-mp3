@@ -6,9 +6,10 @@ class Job:
         self.__btime = time         # burst time of the job 
         self.__size = size          # size of the job
 
-        self.__assignable = True    # bool whether the job is assignable
         self.__status = "waiting"   # job status - can be "waiting", "allocated", or "done"
-        self.__wtime = time         # waiting time of job. shall be decremented
+        self.__assignable = True    # bool whether the job is assignable
+        self.__rtime = time         # remaining time of job (based burst time). decremented
+        self.__wtime = 0            # time taken by job to be allocated. incremented
 
     # get index of this job
     def get_index(self) -> int:
@@ -30,6 +31,10 @@ class Job:
     def get_assignable(self) -> bool:
         return self.__assignable
 
+    # get remaining time of this job
+    def get_rtime(self) -> int:
+        return self.__rtime
+
     # get waiting time of this job
     def get_wtime(self) -> int:
         return self.__wtime
@@ -42,22 +47,31 @@ class Job:
     def set_assignable(self, is_assignable:bool) -> None:
         self.__assignable = is_assignable
 
-    # decrement waiting time by 1
+    # increment waiting time by 1
+    def wait(self) -> None:
+        if self.__status == "waiting":
+            self.__wtime += 1
+
+    # decrement remaining time by 1
     def elapse(self) -> None:
-        self.__wtime -= 1
+        self.__rtime -= 1
 
     # for debugging
     def __repr__(self) -> str:
-        return f'Job{self.__index}: <{self.__wtime}, {self.__status}, {self.__btime}, {self.__size}>'
+        return f'Job{self.__index}: <[{self.__wtime}], {self.__rtime}, {self.__status}, {self.__btime}, {self.__size}>\n'
 
 #* Memory Block Class
 class MemBlock:
     def __init__(self, mem_blk, size) -> None:
-        self.__index = mem_blk      # index no. of the memory block
-        self.__size = size          # size of the block
+        self.__index = mem_blk          # index no. of the memory block
+        self.__size = size              # size of the block
 
-        self.__status = "free"      # block status - can be "free" or "occupied"
-        self.__allocjob = None      # holds the job currently allocated to the block
+        self.__status = "free"          # block status - can be "free" or "occupied"
+        self.__allocjob = None          # holds the job currently allocated to the block
+        self.__unUsedSpace = size       # holds the heavily-used space of the block
+        self.__mostUsedSpace = size     # holds the non-used space of the block   
+        self.__allocatedJobs = 0        # holds total no. of jobs allocated by this block
+        self.__totalIF = 0              # holds the total internal frag. of this block
 
     # get index of a block
     def get_index(self) -> int:
@@ -75,11 +89,36 @@ class MemBlock:
     def get_allocjob(self) -> Job:
         return self.__allocjob
 
+    # get unused space
+    def get_unUnUsedSpace(self) -> int:
+        return self.__unUsedSpace
+
+    # get most used space
+    def get_mostUsedSpace(self) -> int:
+        return self.__mostUsedSpace
+
+    # get allocated jobs
+    def get_allocatedJobs(self) -> int:
+        return self.__allocatedJobs
+
+    # get total internal frag
+    def get_totalIF(self) -> int:
+        return self.__totalIF
+
     # allocate a job in this block
     def allocate(self, job:Job) -> None:
         self.__allocjob = job
         self.__allocjob.set_status('allocated')
         self.__status = "occupied"
+        self.__allocatedJobs += 1
+
+        self.__totalIF += (self.__size - job.get_size())
+        # checks for the non used memory
+        if (self.__size - job.get_size()) <= self.__unUsedSpace:
+            self.__unUsedSpace = (self.__size - job.get_size())
+        # checks for the most used memory
+        if job.get_size() <= self.__mostUsedSpace:
+            self.__mostUsedSpace = job.get_size()
 
     # deallocate the job contained in this block
     def deallocate(self) -> None:
@@ -95,6 +134,19 @@ class MemBlock:
 class JobList:
     def __init__(self) -> None:
         self.__rawlist:list[Job] = []
+        self.__countWaitingJobs = 0
+
+    # get count waiting jobs
+    def get_cwj(self) -> None:
+        return self.__countWaitingJobs
+
+    # get total waiting times of done jobs
+    def get_jobWaits(self) -> None:
+        total = 0
+        for job in self.__rawlist:
+            if job.get_assignable() and job.get_status() == 'done':
+                total += job.get_wtime()
+        return total
 
     # appends jobs to job list
     def add(self, job:Job) -> None:
@@ -106,6 +158,13 @@ class JobList:
         for job in self.__rawlist:
             if job.get_size() > max_block:
                 job.set_assignable(False)
+
+    # increase waiting time for all waiting jobs + count waiting processes
+    def inc_jobWaits(self) -> None:
+        for job in self.__rawlist:
+            if job.get_assignable() and job.get_status() == "waiting":
+                self.__countWaitingJobs += 1
+                job.wait()
 
     # check if all jobs are finished
     def are_finished(self) -> bool:
@@ -128,6 +187,32 @@ class JobList:
 class MemList:
     def __init__(self) -> None:
         self.__rawlist:list[MemBlock] = []
+        self.__countProcessedJobs:int = 0
+        self.__countCompletedJobs:int = 0
+
+    # get count processed jobs
+    def get_cpj(self) -> int:
+        return self.__countProcessedJobs
+
+    # get count completed jobs
+    def get_ccj(self) -> int:
+        return self.__countCompletedJobs
+
+    # get total heavily used space
+    def get_heavy_us(self) -> int:
+        total = 0
+        for block in self.__rawlist:
+            if block.get_allocatedJobs() > 0:
+                total += block.get_mostUsedSpace()
+        return total
+
+    # get total non used space
+    def get_non_us(self) -> int:
+        total = 0
+        for block in self.__rawlist:
+            if block.get_allocatedJobs() > 0:
+                total += block.get_unUnUsedSpace()
+        return total
 
     # appends blocks to memory list
     def add(self, block:MemBlock) -> None:
@@ -167,8 +252,10 @@ class MemList:
                 continue
 
             block.get_allocjob().elapse()
+            self.__countProcessedJobs += 1
 
-            if block.get_allocjob().get_wtime() <= 0:
+            if block.get_allocjob().get_rtime() <= 0:
+                self.__countCompletedJobs += 1
                 block.deallocate()
 
     # print the jobs and time from the memory
@@ -177,8 +264,19 @@ class MemList:
             if block.get_status() == 'occupied':
                 x = str(block.get_allocjob().get_index()).zfill(2)
                 y = str(block.get_index()).zfill(2)
-                z = str(block.get_allocjob().get_wtime()).zfill(2)
+                z = str(block.get_allocjob().get_rtime()).zfill(2)
                 print(f'Job {x} has been allocated in memory block {y} and will reside for {z} ms')
+
+    # display internal fragmentation
+    def display_if(self, time) -> None:
+        for block in self.__rawlist:
+            x = str(block.get_index()).zfill(2)
+            if block.get_totalIF() > 0:
+                print(f'Block {x}\'s total internal fragmentation: {(block.get_totalIF())} units of memory')
+                print(f'Block {x}\'s average internal fragmentation: {round(block.get_totalIF()/time, 2)} units of memory')
+            else:
+                print(f'Block {x} was not allocated to any job.')
+            print()
 
     # allows the object to be indexed
     def __getitem__(self, key:int) -> MemBlock:
@@ -234,6 +332,8 @@ def main():
         # print the current memory list
         print('-'*27 + f' AT TIME t = {str(time).zfill(2)} ' + '-'*27)
         memoryList.display_memlist()
+        # increase wait times for waiting jobs
+        jobList.inc_jobWaits()
         # execute the jobs inside memory list
         memoryList.execute()
 
@@ -243,5 +343,17 @@ def main():
     # ! evaluation
     str_algo = ['WORST-FIT', 'BEST-FIT', 'FIRST-FIT']
     print('='*30 + f' {str_algo[int(chosenAlgo)-1]} ' + '='*30)
+    print()
+    print(f'AVERAGE THROUGHPUT: {round(memoryList.get_cpj()/(time-1), 2)} jobs per unit time')
+    print(f'AVERAGE WAITING QUEUE LENGTH: {round(jobList.get_cwj()/(time-1), 2)} jobs per unit time')
+    print(f'AVERAGE WAITING TIME: {round(jobList.get_jobWaits()/memoryList.get_ccj(), 2)} time units')
+    print()
+    print(f'TOTAL UNUSED PARTITION: {round((memoryList.get_non_us()/50000)*100, 2)}% out of 50 000 memory capacity')
+    print(f'TOTAL HEAVILY USED PARTITION: {round((memoryList.get_heavy_us()/50000)*100, 2)}% out of 50 000 memory capacity')
+    print()
+    print('-'*30 + ' INTERNAL FRAGMENTATION ' + '-'*30)
+    print('Note: I.F. refers to free spaces in each allocation, where current job\'s size < block\'s size.')
+    print()
+    memoryList.display_if(time-1)
 
 main()
