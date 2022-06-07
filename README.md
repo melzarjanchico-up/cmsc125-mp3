@@ -1,4 +1,4 @@
-# `cmsc125-mp2`: Lab Exercise 2
+# `cmsc125-mp3`: Lab Exercise 3
 
 On Memory Management and Allocation Strategies
 
