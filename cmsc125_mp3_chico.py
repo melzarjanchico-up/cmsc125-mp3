@@ -1,3 +1,14 @@
+"""
+    FILE:       cmsc125_mp3_chico.py
+    ABOUT:      Implement the worst-fit, best-fit, and first-fit allocation processes
+    
+    NAME:       Melzar Jan E. Chico
+    COURSE:     CMSC125 B
+    DATE:       2022 April 10
+
+    TASK:       Machine Problem 3
+    NOTES:      Job & Block values are supplied via the text files inside './data'.
+"""
 
 #* Job Class
 class Job:
