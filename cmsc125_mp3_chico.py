@@ -2,7 +2,7 @@
     FILE:       cmsc125_mp3_chico.py
     ABOUT:      Implement the worst-fit, best-fit, and first-fit allocation processes
     
-    NAME:       Melzar Jan E. Chico
+    NAME:       Melzar Jan E. Chico & Vergel Jabello
     COURSE:     CMSC125 B
     DATE:       2022 April 10
 
