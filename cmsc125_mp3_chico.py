@@ -8,6 +8,7 @@
 
     TASK:       Machine Problem 3
     NOTES:      Job & Block values are supplied via the text files inside './data'.
+    ADL NOTES:  The Q&A portion of this machine problem is written below the code or in the README.md file. Thank you.  
 """
 
 #* Job Class
@@ -368,3 +369,18 @@ def main():
     memoryList.display_if(time-1)
 
 main()
+
+"""
+1.) Explain what the results indicate about the performance of the system for this job mix and memory organization. 
+
+- The result indicates that performance system for this job mix does not necessarily matter since all allocation algorithms fall in same ranges of time taken (around 20-30s mark). Although, queue length and times were different. The best-fit had the lowest queue length and average queue time, and worst-fit had the opposite.
+- What matters though was how the algorithms handled the memory. In this system, the worst fit has the lowest unused partition percentage (means most of the partition was atleast used during the liftime). In the highest exhausted partition, best fit came on top (this means, more than half of the systems memory did substantial job in keeping it utilized)
+
+2.) Is one method of partitioning better than the other? Why or why not?
+
+- Nope. There is a reason why our lectures never reasoned for the "best" allocation algorithm. All of the allocation algorithms have their best times and their worst times, depending on job placements, partition conditions, and just the overall specifications of the system. If there was an allocation system that was more "better" than three, there would have been no need to discuss it in the lessons, no? As such, no method of partitioning is better than the other.
+
+3.) Could you recommend one method over the other based on your sample run? Would this hold in all cases? Write some conclusions and recommendations.
+
+- In terms of overall systems, based on my last answers, I really could not conclude the best one. But when recommending one method over this system, I would probably recommend the best-fit allocation method, it has a middle ground throughput; it has the best average queue length and waiting time; it middles on unused partition and is the best utilizing almost half of its memory. The internal fragmentation is fine as well with no blocks that was not allocated. Yes, the other allocation algorithms had ups, but the best-fit system did not have the downs (only middles). Remember, I am only assuming for this system.
+"""
